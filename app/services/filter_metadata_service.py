@@ -2,8 +2,8 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-# from app.config import META_DATA
-META_DATA = "E:\\CODE\\AIC_2024\\Fastapi\\app\\data\\metadata"
+from app.config import META_DATA
+# META_DATA = "E:\\CODE\\AIC_2024\\Fastapi\\app\\data\\metadata"
 
 def load_all_metadata() -> Dict[str, Any]:
     all_metadata = {}
