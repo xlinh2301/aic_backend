@@ -1,5 +1,3 @@
-from pydrive.auth import GoogleAuth, RefreshError
-from pydrive.drive import GoogleDrive
 from typing import List, Dict, Any, Optional
 import torch
 import clip
@@ -11,40 +9,7 @@ from googletrans import Translator
 from langdetect import detect
 from PIL import Image
 from pydantic import BaseModel
-from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, CLIENT_SECRETS, CREDENTIALS_PATH
-from oauth2client.client import HttpAccessTokenRefreshError
-
-
-if not os.path.exists(CLIENT_SECRETS):
-    raise FileNotFoundError(f"Client secrets file not found at {CLIENT_SECRETS}")
-
-# Cấu hình PyDrive và xác thực
-gauth = GoogleAuth()
-gauth.LoadClientConfigFile(CLIENT_SECRETS)
-
-# Kiểm tra xem tệp credentials.json có tồn tại không
-if os.path.exists(CREDENTIALS_PATH):
-    gauth.LoadCredentialsFile(CREDENTIALS_PATH)
-    if gauth.credentials is None or gauth.access_token_expired:
-        try:
-            # Nếu token hết hạn, làm mới token
-            gauth.Refresh()
-        except (RefreshError, HttpAccessTokenRefreshError):
-            # Nếu không thể làm mới token, thực hiện xác thực qua trình duyệt web
-            gauth.LocalWebserverAuth()
-            # Lưu token vào tệp credentials.json
-            gauth.SaveCredentialsFile(CREDENTIALS_PATH)
-    else:
-        # Nếu token hợp lệ, sử dụng token hiện tại
-        gauth.Authorize()
-else:
-    # Nếu không có tệp credentials.json, thực hiện xác thực qua trình duyệt web
-    gauth.LocalWebserverAuth()
-    # Lưu token vào tệp credentials.json
-    gauth.SaveCredentialsFile(CREDENTIALS_PATH)
-
-# Tạo đối tượng GoogleDrive
-drive = GoogleDrive(gauth)
+from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, FILE_LIST
 
 # Cấu hình môi trường và tải mô hình CLIP
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -162,7 +127,7 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
             id_map_load = {str(i): item for i, item in enumerate(id_map_load)}
         
         # Tải danh sách tệp từ Google Drive
-        file_list = load_file_list("E:\\CODE\\AIC_2024\\Fastapi\\app\\data\\file_list.json")  # Thay đổi đường dẫn đến tệp danh sách tệp
+        file_list = load_file_list(FILE_LIST)  # Thay đổi đường dẫn đến tệp danh sách tệp
         
     except Exception as e:
         print(f"Error loading ID map file: {e}")

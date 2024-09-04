@@ -4,10 +4,47 @@ from typing import Dict, List, Optional
 from app.services.faiss_service import search_faiss, search_image
 from app.services.elasticsearch_service import search_ocr, search_object, search_asr
 from app.services.filter_metadata_service import filter_by_metadata  # Import directly
+from app.services.filter_object_service import map_filtered_to_clip  # Import directly
 from elasticsearch import Elasticsearch
 from datetime import datetime
+from app.config import CLIENT_SECRETS, CREDENTIALS_PATH, FILE_LIST
+from pydrive.auth import GoogleAuth, RefreshError
+from pydrive.drive import GoogleDrive
+from oauth2client.client import HttpAccessTokenRefreshError
+import os
 
 app = FastAPI()
+
+if not os.path.exists(CLIENT_SECRETS):
+    raise FileNotFoundError(f"Client secrets file not found at {CLIENT_SECRETS}")
+
+# Cấu hình PyDrive và xác thực
+gauth = GoogleAuth()
+gauth.LoadClientConfigFile(CLIENT_SECRETS)
+
+# Kiểm tra xem tệp credentials.json có tồn tại không
+if os.path.exists(CREDENTIALS_PATH):
+    gauth.LoadCredentialsFile(CREDENTIALS_PATH)
+    if gauth.credentials is None or gauth.access_token_expired:
+        try:
+            # Nếu token hết hạn, làm mới token
+            gauth.Refresh()
+        except (RefreshError, HttpAccessTokenRefreshError):
+            # Nếu không thể làm mới token, thực hiện xác thực qua trình duyệt web
+            gauth.LocalWebserverAuth()
+            # Lưu token vào tệp credentials.json
+            gauth.SaveCredentialsFile(CREDENTIALS_PATH)
+    else:
+        # Nếu token hợp lệ, sử dụng token hiện tại
+        gauth.Authorize()
+else:
+    # Nếu không có tệp credentials.json, thực hiện xác thực qua trình duyệt web
+    gauth.LocalWebserverAuth()
+    # Lưu token vào tệp credentials.json
+    gauth.SaveCredentialsFile(CREDENTIALS_PATH)
+
+# Tạo đối tượng GoogleDrive
+drive = GoogleDrive(gauth)
 
 # CORS configuration
 app.add_middleware(
@@ -29,7 +66,8 @@ async def search_all(
     value: Optional[int] = 1, 
     publish_day: Optional[int] = None,
     publish_month: Optional[int] = None,
-    publish_year: Optional[int] = None
+    publish_year: Optional[int] = None,
+    object_as_filter: Optional[bool] = True  # Thêm cờ để quyết định cách sử dụng object search
 ):
     """
     Endpoint to perform combined search from multiple sources: CLIP, OCR, Object, ASR, and Image.
@@ -62,17 +100,25 @@ async def search_all(
         if "ocr" in queries and queries["ocr"]:
             results["ocr"] = search_ocr(es, "ocr", queries["ocr"])
 
-        if "object" in queries and queries["object"]:
-            results["object"] = search_object(es, "object_detection", queries["object"], top, operator, value)
-
         if "asr" in queries and queries["asr"]:
             results["asr"] = search_asr(es, "asr_test", queries["asr"])
 
         if "image_url" in queries and queries["image_url"]:
             results["image"] = search_image(queries["image_url"])
 
-        # Combine search results
-        combined_results = combine_results(results)
+        # Kiểm tra cách sử dụng object search
+        if object_as_filter:
+            if "object" in queries and queries["object"]:
+                filtered_results = search_object(es, "object_detection", queries["object"], top, operator, value)
+                print("Filtered results: ", filtered_results)
+                print("Clip results: ", results["clip"])
+                combined_results = map_filtered_to_clip(filtered_results, results["clip"])
+            else:
+                combined_results = combine_results(results)
+        else:
+            if "object" in queries and queries["object"]:
+                results["object"] = search_object(es, "object_detection", queries["object"], top, operator, value)
+            combined_results = combine_results(results)
 
         # Filter results by publish_date if any date components are provided
         if publish_day or publish_month or publish_year:

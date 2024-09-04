@@ -62,6 +62,9 @@ def filter_by_metadata(search_results: Dict[str, List[Dict[str, Any]]],
                 if ((publish_year is None or video_publish_date.year == publish_year) and
                     (publish_month is None or video_publish_date.month == publish_month) and
                     (publish_day is None or video_publish_date.day == publish_day)):
+                    print("publish_year: ", publish_year)
+                    print("publish_month: ", publish_month)
+                    print("publish_day: ", publish_day)
                     filtered_results.append(info)
 
     return filtered_results
