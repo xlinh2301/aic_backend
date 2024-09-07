@@ -14,10 +14,10 @@ def map_filtered_to_clip(filtered_results: List[Dict], clip_results: List[Dict])
     mapped_results = []
     
     for filtered in filtered_results:
-        frame_id = filtered['_source'].get('frame_id')
-        video_id = filtered['_source'].get("video_id")
-        # print("Frame ID of object: ", frame_id)
-        # print("Video ID of object: ", video_id)
+        frame_id = filtered.get('frame_id')
+        video_id = filtered.get("video_id")
+        print("Frame ID of object: ", frame_id)
+        print("Video ID of object: ", video_id)
         
         # Tìm kết quả trong clip dựa trên frame_id và video_id
         for clip in clip_results:

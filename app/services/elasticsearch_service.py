@@ -191,7 +191,8 @@ def search_object_from_elasticsearch(es: Elasticsearch, index_name: str, query: 
     try:
         response = es.search(index=index_name, body=search_body)
         hits = response['hits']['hits']
-        
+        results = []
+
         # Add image path to each result
         for hit in hits:
             frame_id = hit['_source'].get('frame_id', {})
@@ -199,7 +200,15 @@ def search_object_from_elasticsearch(es: Elasticsearch, index_name: str, query: 
             video_folder = hit['_source'].get('video_folder', {})
             image_path = construct_image_path(file_list, hits, frame_id, video_id, video_folder)
             hit['_source']['image_path'] = image_path
-        return response['hits']['hits']
+            label_counts = hit['_source'].get('label_counts', {})
+            labels = hit['_source'].get('labels', [])
+            results.append(frame_id)
+            results.append(video_id)
+            results.append(video_folder)
+            results.append(labels)
+            results.append(label_counts)
+            results.append(image_path)
+        return results
     except Exception as e:
         print(f"Error searching Elasticsearch: {str(e)}")
         return []
@@ -235,7 +244,8 @@ def search_object_in_backup(query: str, backup_data: List[Dict], top: int, opera
 
     return results
 
-def search_object(es: Elasticsearch, index_name: str, query: str, top: int, operator: str, value: int) -> List[Dict]:
+def search_object(es: Elasticsearch, index_name: str, query: str, operator: str, value: int) -> List[Dict]:
+    top = 200
     es_results = search_object_from_elasticsearch(es, index_name, query, top, operator, value)
     if es_results:
         return es_results

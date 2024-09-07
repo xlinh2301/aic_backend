@@ -61,7 +61,6 @@ es = Elasticsearch(['http://localhost:9200'])
 @app.post("/app/search")
 async def search_all(
     queries: Dict[str, Optional[str]], 
-    top: Optional[int] = 10, 
     operator: Optional[str] = "gte", 
     value: Optional[int] = 1, 
     publish_day: Optional[int] = None,
@@ -74,7 +73,6 @@ async def search_all(
 
     Parameters:
     - queries: Dictionary containing queries for CLIP, OCR, Object, ASR, and Image.
-    - top: Maximum number of results to return for object queries.
     - operator: Comparison operator for the range condition in object queries. Can be "gte", "gt", "lte", "lt", or "eq".
     - value: Value of label_count to compare in the object query.
     - publish_day: Day of the publish date to filter results.
@@ -108,16 +106,17 @@ async def search_all(
 
         # Kiểm tra cách sử dụng object search
         if object_as_filter:
-            if "object" in queries and queries["object"]:
-                filtered_results = search_object(es, "object_detection", queries["object"], top, operator, value)
+            if "object" in queries and queries["object"] and results["clip"]:
+                filtered_results = search_object(es, "object_detection", queries["object"], operator, value)
                 print("Filtered results: ", filtered_results)
                 print("Clip results: ", results["clip"])
                 combined_results = map_filtered_to_clip(filtered_results, results["clip"])
             else:
+                results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
                 combined_results = combine_results(results)
         else:
             if "object" in queries and queries["object"]:
-                results["object"] = search_object(es, "object_detection", queries["object"], top, operator, value)
+                results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
             combined_results = combine_results(results)
 
         # Filter results by publish_date if any date components are provided
