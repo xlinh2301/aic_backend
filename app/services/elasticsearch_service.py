@@ -21,8 +21,8 @@ def construct_image_path(file_list: Dict[str, str], image_info: Dict[str, str], 
     :param image_info: Thông tin ảnh bao gồm 'frame_id', 'video_id', và 'video_folder'.
     :return: Đường dẫn trực tiếp đến file ảnh trên Google Drive.
     """
-    base_url = "https://drive.google.com/thumbnail?export=view&id="
-    
+    base_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="
+
     if frame_id and video_id and video_folder:
         # Build the file name
         file_name = f"{video_id}_{frame_id}.jpg"

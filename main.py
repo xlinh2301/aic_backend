@@ -66,7 +66,7 @@ async def search_all(
     publish_day: Optional[int] = None,
     publish_month: Optional[int] = None,
     publish_year: Optional[int] = None,
-    object_as_filter: Optional[bool] = True  # Thêm cờ để quyết định cách sử dụng object search
+    object_as_filter: Optional[bool] = False  # Thêm cờ để quyết định cách sử dụng object search
 ):
     """
     Endpoint to perform combined search from multiple sources: CLIP, OCR, Object, ASR, and Image.
@@ -103,6 +103,16 @@ async def search_all(
 
         if "image_url" in queries and queries["image_url"]:
             results["image"] = search_image(queries["image_url"])
+
+        # Ensure object_as_filter is defined
+        object_as_filter = queries.get("object_as_filter", False)
+
+        # Ensure operator and value are defined
+        operator = queries.get("operator")
+        value = queries.get("value")
+
+        # Ensure results["clip"] is initialized
+        results["clip"] = results.get("clip", [])
 
         # Kiểm tra cách sử dụng object search
         if object_as_filter:
