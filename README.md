@@ -33,7 +33,7 @@ link: https://drive.google.com/file/d/1UGNPIu9exiDfMTZldHgcQds0Em8T9Fy1/view?usp
 Create a Conda environment with the required dependencies:
 
 ```bash
-conda create --name video_search_backend python=3.12.5
+conda create --name video_search_backend python
 conda activate video_search_backend
 ```
 
@@ -42,7 +42,7 @@ Install Dependencies
 pip install -r requirements.txt
 ```
 
-### 4. Setup with Docker
+### 4. Setup with Docker (Not recommended)
 Build and Run Docker Containers
 To build and run the Docker containers defined in docker-compose.yml, use the following command:
 ```bash
