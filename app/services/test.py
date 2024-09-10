@@ -4,10 +4,7 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 
 # Đảm bảo rằng đường dẫn đến tệp client_secrets.json là chính xác
-client_secrets_path = "E:\\CODE\\AIC_2024\\Fastapi\\app\\data\\client_secrets.json"
-
-if not os.path.exists(client_secrets_path):
-    raise FileNotFoundError(f"Client secrets file not found at {client_secrets_path}")
+client_secrets_path = 'E:\\AIC\\aic_backend\\app\\data\\client_secrets.json'
 
 # Cấu hình PyDrive và xác thực
 gauth = GoogleAuth()
@@ -17,10 +14,9 @@ gauth.LocalWebserverAuth()  # Cho phép xác thực qua trình duyệt web
 # Tạo đối tượng GoogleDrive
 drive = GoogleDrive(gauth)
 
-def get_file_info(drive, folder_id):
-    """Lấy ID và tên các tệp trong thư mục con, bao gồm cả các thư mục con, loại trừ các tệp ZIP và MP4"""
-    files_info = []
-    seen_file_ids = set()  # Tập hợp để theo dõi các ID tệp đã được xử lý
+def get_video_ids(drive, folder_id):
+    """Lấy ID và tên của các video MP4 trong thư mục"""
+    video_info_list = []
     folders = [folder_id]
     
     while folders:
@@ -41,46 +37,35 @@ def get_file_info(drive, folder_id):
                 file_title = file['title']
                 mime_type = file['mimeType']
                 
-                if file_id in seen_file_ids:
-                    print(f"Tệp đã được xử lý: {file_title}")
-                    continue  # Bỏ qua tệp đã được xử lý
-                
-                # Loại trừ các tệp ZIP và MP4
-                if mime_type in ['application/zip', 'video/mp4']:
-                    print(f"Bỏ qua tệp: {file_title}")
-                    continue
-                
                 if mime_type == 'application/vnd.google-apps.folder':
-                    folders.append(file_id)
-                    print(f"Thêm thư mục con: {file_id}")
-                else:
-                    file_info = {
+                    # Chỉ thêm các thư mục con có tên chứa từ 'video'
+                    if 'video' in file_title.lower():
+                        folders.append(file_id)
+                        print(f"Thêm thư mục con chứa 'video': {file_id}")
+                elif mime_type == 'video/mp4':
+                    video_info = {
                         'id': file_id,
                         'title': file_title
                     }
-                    files_info.append(file_info)
-                    seen_file_ids.add(file_id)
-                    print(f"Thêm tệp: {file_title}")
+                    video_info_list.append(video_info)
+                    print(f"Thêm video: {file_title}, ID: {file_id}")
+                else:
+                    print(f"Bỏ qua tệp: {file_title}")
             
             # Lấy pageToken cho trang tiếp theo
             page_token = drive.auth.service.files().list(q=query, pageToken=page_token).execute().get('nextPageToken')
             if not page_token:
                 break
     
-    return files_info
+    return video_info_list
 
-def save_file_list_to_json(drive, folder_id, output_file_path):
-    """Lưu danh sách các tệp vào tệp JSON chỉ chứa ID và tên"""
-    files_info = get_file_info(drive, folder_id)
-    
-    # Lưu vào tệp JSON
-    with open(output_file_path, 'w') as f:
-        json.dump(files_info, f, indent=4)
-    
-    print(f"File list saved to {output_file_path}")
-
-# Thay thế `folder_id` bằng ID của thư mục chứa các tệp của bạn
+# Thay thế `folder_id` bằng ID của thư mục chứa các tệp video của bạn
 folder_id = '14aa9fYPRS0h8wpB_oHEEGerhuFPue8sN'  # ID thư mục gốc
-output_file_path = 'E:\\CODE\\AIC_2024\\Fastapi\\app\\data\\file_list.json'
+video_info_list = get_video_ids(drive, folder_id)
 
-save_file_list_to_json(drive, folder_id, output_file_path)
+# Lưu thông tin video vào file JSON mới
+output_file_path = 'E:\\AIC\\aic_backend\\app\\file_video_list.json'
+with open(output_file_path, 'w') as f:
+    json.dump(video_info_list, f, indent=4)
+
+print(f"File JSON mới đã được lưu tại {output_file_path}")

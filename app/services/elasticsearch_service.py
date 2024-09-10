@@ -1,8 +1,7 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from elasticsearch import Elasticsearch, exceptions
 import json
 import os
-from typing import Optional
 from rapidfuzz import fuzz # type: ignore
 from app.config import ASR_BACKUP_FILE_PATH, OCR_BACKUP_FILE_PATH, OBJECT_BACKUP_FILE_PATH, FILE_LIST
 
@@ -176,10 +175,17 @@ def search_object_from_elasticsearch(es: Elasticsearch, index_name: str, query: 
                         }
                     },
                     {
-                        "range": {
-                            f"label_counts.{query}": {
-                                operator: value
-                            }
+                        "bool": {
+                            "must": [
+                                {"exists": {"field": f"label_counts.{query}"}},
+                                {
+                                    "range": {
+                                        f"label_counts.{query}": {
+                                            operator: value
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 ]
@@ -187,6 +193,7 @@ def search_object_from_elasticsearch(es: Elasticsearch, index_name: str, query: 
         },
         "size": top
     }
+
     
     try:
         response = es.search(index=index_name, body=search_body)
@@ -248,6 +255,7 @@ def search_object(es: Elasticsearch, index_name: str, query: str, operator: str,
     top = 200
     es_results = search_object_from_elasticsearch(es, index_name, query, top, operator, value)
     if es_results:
+        print("Results found in Elasticsearch")
         return es_results
     else:
         print("Error: Cannot connect to Elastic search server")

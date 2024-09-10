@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from app.services.faiss_service import search_faiss, search_image
 from app.services.elasticsearch_service import search_ocr, search_object, search_asr
 from app.services.filter_metadata_service import filter_by_metadata  # Import directly
-from app.services.filter_object_service import map_filtered_to_clip  # Import directly
+from app.services.filter_object_service import search_filter_object  # Import directly
 from elasticsearch import Elasticsearch
 from datetime import datetime
 from app.config import CLIENT_SECRETS, CREDENTIALS_PATH, FILE_LIST
@@ -66,7 +66,7 @@ async def search_all(
     publish_day: Optional[int] = None,
     publish_month: Optional[int] = None,
     publish_year: Optional[int] = None,
-    object_as_filter: Optional[bool] = False  # Thêm cờ để quyết định cách sử dụng object search
+    object_as_filter: Optional[bool] = True  # Thêm cờ để quyết định cách sử dụng object search
 ):
     """
     Endpoint to perform combined search from multiple sources: CLIP, OCR, Object, ASR, and Image.
@@ -104,9 +104,6 @@ async def search_all(
         if "image_url" in queries and queries["image_url"]:
             results["image"] = search_image(queries["image_url"])
 
-        # Ensure object_as_filter is defined
-        object_as_filter = queries.get("object_as_filter", False)
-
         # Ensure operator and value are defined
         operator = queries.get("operator")
         value = queries.get("value")
@@ -116,16 +113,15 @@ async def search_all(
 
         # Kiểm tra cách sử dụng object search
         if object_as_filter:
+            print("Vô đây")
             if "object" in queries and queries["object"] and results["clip"]:
-                filtered_results = search_object(es, "object_detection", queries["object"], operator, value)
-                print("Filtered results: ", filtered_results)
-                print("Clip results: ", results["clip"])
-                combined_results = map_filtered_to_clip(filtered_results, results["clip"])
+                combined_results = search_filter_object(es, "object_detection", queries["object"], operator, value, results["clip"])
             else:
                 results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
                 combined_results = combine_results(results)
         else:
             if "object" in queries and queries["object"]:
+                print("Vô đây nè")
                 results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
             combined_results = combine_results(results)
 

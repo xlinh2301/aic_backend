@@ -4,12 +4,13 @@ import clip
 import os
 import numpy as np
 import json
+import cv2
 import faiss
 from googletrans import Translator
 from langdetect import detect
 from PIL import Image
 from pydantic import BaseModel
-from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, FILE_LIST
+from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST
 
 # Cấu hình môi trường và tải mô hình CLIP
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -22,6 +23,8 @@ class SearchResult(BaseModel):
     video_id: str
     video_folder: str
     image_path: str
+    video_path: str
+    fps: int
 
 def translate_query(query: str) -> str:
     """Dịch câu truy vấn từ tiếng Việt sang tiếng Anh"""
@@ -77,39 +80,95 @@ def load_file_list(file_list_path: str) -> Dict[str, str]:
     """Tải tệp JSON chứa ID và tên tệp vào một dictionary."""
     with open(file_list_path, 'r') as f:
         file_list = json.load(f)
-    # Tạo một dictionary từ ID và tên tệp
-    return {file['title']: file['id'] for file in file_list}
+    
+    # Kiểm tra cấu trúc của file_list và xây dựng dictionary
+    file_dict = {}
+    for item in file_list:
+        title = item.get('title')
+        file_id = item.get('id')  # Hoặc tên trường chứa ID
+        if title and file_id:
+            file_dict[title] = file_id
+    
+    return file_dict
 
-def construct_image_path(file_list: Dict[str, str], image_info: Dict[str, str]) -> Optional[str]:
+def load_fps_list(fps_list_path: str) -> Dict[str, float]:
+    """Tải tệp JSON chứa FPS vào một dictionary."""
+    with open(fps_list_path, 'r') as f:
+        fps_list = json.load(f)
+    
+    # Xây dựng dictionary từ danh sách FPS
+    fps_dict = {}
+    for item in fps_list:
+        title = item.get('title')
+        fps = item.get('fps')
+        if title and fps is not None:
+            fps_dict[title] = fps
+    
+    return fps_dict
+
+def get_fps(video_name: str, file_fps_list: Dict[str, float]) -> Optional[float]:
+    """Lấy FPS từ từ điển dựa trên video_name."""
+    return file_fps_list.get(video_name, None)
+
+def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_list: Dict[str, str], file_fps_list: Dict[str, int], image_info: Dict[str, str]) -> Dict[str, Optional[str]]:
     """
-    Xây dựng đường dẫn ảnh từ thông tin ảnh sử dụng tệp JSON chứa ID và tên tệp.
+    Xây dựng đường dẫn ảnh và video từ thông tin ảnh sử dụng tệp JSON chứa ID và tên tệp.
     
     :param file_list: Dictionary chứa ID và tên tệp.
+    :param file_video_list: Dictionary chứa ID và tên video.
     :param image_info: Thông tin ảnh bao gồm 'frame_id', 'video_id', và 'video_folder'.
-    :return: Đường dẫn trực tiếp đến file ảnh trên Google Drive.
+    :return: Một dictionary chứa đường dẫn ảnh và video.
     """
-    base_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="    
+    base_image_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="
+    base_video_url = "https://drive.google.com/file/d/"  # Base URL for video
+    
     # Extract information from image_info
     frame_id = image_info.get('frame_id')
     video_id = image_info.get('video_id')
     video_folder = image_info.get('video_folder')
     
+    result = {}
+    
     if frame_id and video_id and video_folder:
-        # Build the file name
+        # Build the file name for the image
         file_name = f"{video_id}_{frame_id}.jpg"
-        
+        video_name = f"{video_id}.mp4"
         # Get the file ID from the file name using the file_list dictionary
         file_id = file_list.get(file_name)
+        video_file_id = file_video_list.get(video_name)  # Get video file ID using video_id
+        print("video id: ", video_file_id)
+
+        # get fps
+        print("fps list: ", file_fps_list)
+        print("video name: ", video_name)
+        fps = file_fps_list.get(video_name, None)
+        print("fps: ", fps)
         if file_id:
             # Build the image path from file_id
-            image_path = f"{base_url}{file_id}"
-            return image_path
+            image_path = f"{base_image_url}{file_id}"
+            result['image_path'] = image_path
         else:
             print(f"File ID not found for file: {file_name}")
-            return None
+            result['image_path'] = None
+        
+        if video_file_id:
+            # Construct the video path from video_id
+            video_path = f"{base_video_url}{video_file_id}/view"
+            result['video_path'] = video_path
+        else:
+            print(f"Video ID not found for video: {video_id}")
+            result['video_path'] = None
+
+        if fps:
+            result['fps'] = fps
     else:
         print(f"Required information not found in image_info: {image_info}")
-        return None
+        result['image_path'] = None
+        result['video_path'] = None
+        result['fps'] = None
+        
+    return result
+
 
 def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Tìm kiếm trong FAISS dựa trên văn bản hoặc hình ảnh và trả về kết quả dưới dạng danh sách từ điển"""
@@ -123,14 +182,15 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
         
         # Đảm bảo id_map_load là một dictionary
         if isinstance(id_map_load, list):
-            id_map_load = {str(i): item for i, item in enumerate(id_map_load)}
-        
-        # Tải danh sách tệp từ Google Drive
-        file_list = load_file_list(FILE_LIST)  # Thay đổi đường dẫn đến tệp danh sách tệp
+            id_map_load = {str(i): item for i, item in enumerate(id_map_load)}        
         
     except Exception as e:
         print(f"Error loading ID map file: {e}")
         return []
+
+    file_list = load_file_list(FILE_LIST) 
+    file_video_list = load_file_list(FILE_VIDEO_LIST)    
+    file_fps_list = load_fps_list(FILE_FPS_LIST)
 
     if query:
         # Tìm kiếm theo văn bản
@@ -146,25 +206,23 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
     for idx in result_indices:
         image_info = id_map_load.get(str(idx), None)
         if image_info:
-            # Sử dụng hàm construct_image_path để tạo đường dẫn hình ảnh
-            img_path = construct_image_path(file_list, image_info)
-            if img_path:
-                # Thêm thông tin hình ảnh và đường dẫn hình ảnh vào kết quả
+            # Sử dụng hàm construct_image_path_and_video_path để tạo đường dẫn hình ảnh
+            paths = construct_image_path_and_video_path(file_list, file_video_list, file_fps_list, image_info)
+            img_path = paths.get('image_path')
+            video_path = paths.get('video_path')
+            fps = paths.get('fps')
+            
+            if img_path and video_path:                
+                # Thêm thông tin hình ảnh, video, và FPS vào kết quả
                 results.append({
                     'frame_id': image_info['frame_id'],
                     'video_id': image_info['video_id'],
                     'video_folder': image_info['video_folder'],
-                    'image_path': img_path
+                    'image_path': img_path,
+                    'video_path': video_path,
+                    'fps': fps  # Thêm FPS vào kết quả
                 })
             else:
                 print(f"Failed to construct image path for index {idx}")
 
     return results
-
-# # Ví dụ sử dụng hàm search_faiss
-# folder_id = '14aa9fYPRS0h8wpB_oHEEGerhuFPue8sN'  # Thay bằng ID của thư mục Dataset_train
-# query = "lũ lụt"  # Câu truy vấn tìm kiếm
-
-# # Gọi hàm search_faiss với đối số drive và folder_id
-# search_result = search_faiss(query=query)
-# print(search_result)
