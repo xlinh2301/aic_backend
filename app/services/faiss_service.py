@@ -63,8 +63,8 @@ def search_text(text_query: str, index, top_k: int = 5) -> List[int]:
         text_features = model.encode_text(text)
     text_features = text_features.cpu().numpy().astype('float32').flatten()
     distances, indices = index.search(np.expand_dims(text_features, axis=0), top_k)
-    print(f"Search distances (text): {distances}")
-    print(f"Search indices (text): {indices}")
+    # print(f"Search distances (text): {distances}")
+    # print(f"Search indices (text): {indices}")
     return indices[0]
 
 def search_image(image_path: str, index, top_k: int = 5) -> List[int]:
@@ -133,16 +133,10 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
         # Build the file name for the image
         file_name = f"{video_id}_{frame_id}.jpg"
         video_name = f"{video_id}.mp4"
-        # Get the file ID from the file name using the file_list dictionary
         file_id = file_list.get(file_name)
         video_file_id = file_video_list.get(video_name)  # Get video file ID using video_id
-        print("video id: ", video_file_id)
-
-        # get fps
-        print("fps list: ", file_fps_list)
-        print("video name: ", video_name)
         fps = file_fps_list.get(video_name, None)
-        print("fps: ", fps)
+
         if file_id:
             # Build the image path from file_id
             image_path = f"{base_image_url}{file_id}"

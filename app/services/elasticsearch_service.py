@@ -2,263 +2,161 @@ from typing import List, Dict, Optional
 from elasticsearch import Elasticsearch, exceptions
 import json
 import os
-from rapidfuzz import fuzz # type: ignore
-from app.config import ASR_BACKUP_FILE_PATH, OCR_BACKUP_FILE_PATH, OBJECT_BACKUP_FILE_PATH, FILE_LIST
+from rapidfuzz import fuzz  # type: ignore
+from app.config import ASR_BACKUP_FILE_PATH, OCR_BACKUP_FILE_PATH, OBJECT_BACKUP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST
 
-def load_file_list(file_list_path: str) -> Dict[str, str]:
-    """Tải tệp JSON chứa ID và tên tệp vào một dictionary."""
-    with open(file_list_path, 'r') as f:
-        file_list = json.load(f)
-    # Tạo một dictionary từ ID và tên tệp
-    return {file['title']: file['id'] for file in file_list}
+def load_json_file(file_path: str) -> List[Dict]:
+    """Tải dữ liệu từ tệp JSON và trả về dưới dạng danh sách các dictionary."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading JSON file {file_path}: {e}")
+        return []
 
-def construct_image_path(file_list: Dict[str, str], image_info: Dict[str, str], frame_id: str, video_id: str, video_folder: str) -> Optional[str]:
+def load_file_dict(file_list_path: str) -> Dict[str, str]:
+    """Tải danh sách file vào dictionary với key là tên file và value là ID."""
+    file_list = load_json_file(file_list_path)
+    return {item.get('title'): item.get('id') for item in file_list if item.get('title') and item.get('id')}
+
+def construct_paths(file_list: Dict[str, str], file_video_list: Dict[str, str], file_fps_list: Dict[str, float], image_info: Dict[str, str]) -> Dict[str, Optional[str]]:
     """
-    Xây dựng đường dẫn ảnh từ thông tin ảnh sử dụng tệp JSON chứa ID và tên tệp.
+    Xây dựng đường dẫn ảnh và video từ thông tin ảnh sử dụng tệp JSON chứa ID và tên tệp.
     
-    :param file_list: Dictionary chứa ID và tên tệp.
+    :param file_list: Dictionary chứa ID và tên tệp ảnh.
+    :param file_video_list: Dictionary chứa ID và tên video.
+    :param file_fps_list: Dictionary chứa FPS của video.
     :param image_info: Thông tin ảnh bao gồm 'frame_id', 'video_id', và 'video_folder'.
-    :return: Đường dẫn trực tiếp đến file ảnh trên Google Drive.
+    :return: Một dictionary chứa đường dẫn ảnh, video và FPS.
     """
-    base_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="
+    base_image_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="
+    base_video_url = "https://drive.google.com/file/d/"
+    
+    frame_id = image_info.get('frame_id')
+    video_id = image_info.get('video_id')
+    video_folder = image_info.get('video_folder')
+    
+    result = {
+        'image_path': None,
+        'video_path': None,
+        'fps': None
+    }
 
     if frame_id and video_id and video_folder:
-        # Build the file name
         file_name = f"{video_id}_{frame_id}.jpg"
-        
-        # Get the file ID from the file name using the file_list dictionary
+        video_name = f"{video_id}.mp4"
+
         file_id = file_list.get(file_name)
+        video_file_id = file_video_list.get(video_name)
+        fps = file_fps_list.get(video_name)
+        
         if file_id:
-            # Build the image path from file_id
-            image_path = f"{base_url}{file_id}"
-            return image_path
-        else:
-            print(f"File ID not found for file: {file_name}")
-            return None
-    else:
-        print(f"Required information not found in image_info: {image_info}")
-        return None
+            result['image_path'] = f"{base_image_url}{file_id}"
+        if video_file_id:
+            result['video_path'] = f"{base_video_url}{video_file_id}/view"
+        if fps is not None:
+            result['fps'] = fps
 
+    return result
 
-# Helper function to load backup data
-def load_backup_data(backup_path: str) -> List[Dict]:
-    data = []
-    try:
-        with open(backup_path, 'r', encoding='utf-8') as f:
-            content = f.read().strip()
-            if content:  
-                try:
-                    data = json.loads(content)
-                except json.JSONDecodeError as e:
-                    print(f"JSON decoding error: {e}")
-    except FileNotFoundError:
-        print(f"File not found: {backup_path}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    return data
-
-def search_ocr_from_elasticsearch(es: Elasticsearch, index_name: str, query: str, file_list: Dict[str, str]) -> List[Dict]:
+def search_from_elasticsearch(es: Elasticsearch, index_name: str, query: str, field: str) -> List[Dict]:
+    """Tìm kiếm từ Elasticsearch dựa trên trường và truy vấn cụ thể."""
     search_query = {
         "query": {
             "match": {
-                "text": query
+                field: query
             }
         }
     }
-    response = es.search(index=index_name, body=search_query)
-    hits = response['hits']['hits']
-    
-    # Add image path to each result
-    for hit in hits:
-        frame_id = hit['_source'].get('frame', {})
-        video_id = hit['_source'].get('video_name', {})
-        video_folder = f"Videos_{video_id.split('_')[0]}"
-        image_path = construct_image_path(file_list, hits, frame_id, video_id, video_folder)
-        hit['_source']['image_path'] = image_path
-    
-    return hits
+    try:
+        response = es.search(index=index_name, body=search_query)
+        return response['hits']['hits']
+    except (exceptions.ConnectionError, exceptions.TransportError) as e:
+        print(f"Elasticsearch connection error: {e}")
+        return []
 
-def search_ocr_in_backup(query: str, backup_data: List[List[Dict]], file_list: Dict[str, str], threshold: int = 70) -> List[Dict]:
+def search_in_backup(query: str, backup_data: List[Dict], threshold: int = 70, field: str = 'text') -> List[Dict]:
+    """Tìm kiếm trong dữ liệu backup bằng cách sử dụng fuzzy matching."""
     results = []
-
-    # Iterate through the list of lists
-    for entry_list in backup_data:
-        for entry in entry_list:
-            text_list = entry.get('text', [])
-            if isinstance(text_list, list):
-                for text in text_list:
-                    score = fuzz.partial_ratio(query.lower(), text.lower())
-                    if score >= threshold:
-                        # Add image path to the result
-                        frame_name = entry['file']
-                        frame_id = frame_name.split('_')[-1].split('.')[0]
-                        video_id = entry['video_name']
-                        video_folder = f"Videos_{video_id.split('_')[0]}"
-                        image_path = construct_image_path(file_list, entry, frame_id, video_id, video_folder)
-                        entry['image_path'] = image_path
-                        results.append(entry)
-                        break  # Stop after finding the first match in the list
-
-            if len(results) >= 200:  # Limit the number of results
-                break
-    
+    for entry in backup_data:
+        text_list = entry.get(field, [])
+        if isinstance(text_list, list):
+            for text in text_list:
+                score = fuzz.partial_ratio(query.lower(), text.lower())
+                if score >= threshold:
+                    results.append(entry)
+                    break
+        if len(results) >= 300:
+            break
     return results
 
 def search_ocr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
-    file_list = load_file_list(FILE_LIST)
-    backup_data = load_backup_data(OCR_BACKUP_FILE_PATH)
-    try:
+    """Tìm kiếm OCR trong Elasticsearch hoặc trong backup nếu không có kết quả từ Elasticsearch."""
+    file_list = load_file_dict(FILE_LIST)
+    file_video_list = load_file_dict(FILE_VIDEO_LIST)
+    file_fps_list = {item['title']: item['fps'] for item in load_json_file(FILE_FPS_LIST)}
 
-        es_results = search_ocr_from_elasticsearch(es, index_name, query, file_list)
-        if es_results:
-            return es_results
-        else:
-            print("Error: No results from Elasticsearch")
-            return search_ocr_in_backup(query, backup_data, file_list, threshold=50)
-    except (exceptions.ConnectionError, exceptions.TransportError) as e:
-        print(f"Elasticsearch connection error: {e}")
-        return search_ocr_in_backup(query, backup_data, file_list, threshold=50)
-
-# ASR search functions
-def search_asr_from_elasticsearch(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
-    search_query = {
-        "query": {
-            "match": {
-                "text": query
+    es_results = search_from_elasticsearch(es, index_name, query, 'text')
+    if es_results:
+        for hit in es_results:
+            image_info = {
+                'frame_id': hit['_source'].get('frame', ''),
+                'video_id': hit['_source'].get('video_name', ''),
+                'video_folder': f"Videos_{hit['_source'].get('video_name', '').split('_')[0]}"
             }
-        }
-    }
-    response = es.search(index=index_name, body=search_query)
-    hits = response['hits']['hits']
-    return hits
+            hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
+        return es_results
 
-def search_asr_in_backup(query: str, backup_data: List[Dict], threshold: int = 70) -> List[Dict]:
-    results = []
-    
-    for entry in backup_data:
-        text = entry.get('text', '')
-        # Perform fuzzy matching
-        score = fuzz.partial_ratio(query.lower(), text.lower())
-        if score >= threshold:  
-            results.append(entry)
-        
-        if len(results) >= 200:
-            break
-    
-    return results
+    backup_data = load_json_file(OCR_BACKUP_FILE_PATH)
+    return search_in_backup(query, backup_data)
 
 def search_asr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
-    try:
-        es_results = search_asr_from_elasticsearch(es, index_name, query)
-        if es_results:
-            return es_results
-        else:
-            print("Error: No results from Elasticsearch")
-            backup_data = load_backup_data(ASR_BACKUP_FILE_PATH)
-            return search_asr_in_backup(query, backup_data, threshold=50)
-    except (exceptions.ConnectionError, exceptions.TransportError) as e:
-        print(f"Elasticsearch connection error: {e}")
-        backup_data = load_backup_data(ASR_BACKUP_FILE_PATH)
-        return search_asr_in_backup(query, backup_data, threshold=50)
+    """Tìm kiếm ASR trong Elasticsearch hoặc trong backup nếu không có kết quả từ Elasticsearch."""
+    es_results = search_from_elasticsearch(es, index_name, query, 'text')
+    if es_results:
+        return es_results
 
-# Object search functions (already provided)
-def search_object_from_elasticsearch(es: Elasticsearch, index_name: str, query: str, top: int, operator: str, value: int) -> List[Dict]:
-    file_list = load_file_list(FILE_LIST)
-    
+    backup_data = load_json_file(ASR_BACKUP_FILE_PATH)
+    return search_in_backup(query, backup_data, field='text')
+
+def search_object(es: Elasticsearch, index_name: str, query: str, operator: str, value: int) -> List[Dict]:
+    """Tìm kiếm đối tượng trong Elasticsearch hoặc trong backup nếu không có kết quả từ Elasticsearch."""
+    file_list = load_file_dict(FILE_LIST)
+    file_video_list = load_file_dict(FILE_VIDEO_LIST)
+    file_fps_list = {item['title']: item['fps'] for item in load_json_file(FILE_FPS_LIST)}
+
     search_body = {
         "query": {
             "bool": {
                 "must": [
-                    {
-                        "term": {
-                            "labels.keyword": query
-                        }
-                    },
-                    {
-                        "bool": {
-                            "must": [
-                                {"exists": {"field": f"label_counts.{query}"}},
-                                {
-                                    "range": {
-                                        f"label_counts.{query}": {
-                                            operator: value
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
+                    {"term": {"labels.keyword": query}},
+                    {"bool": {"must": [{"exists": {"field": f"label_counts.{query}"}}]}}
                 ]
             }
         },
-        "size": top
+        "size": 300
     }
 
-    
+    # Add the range query only if the value is not None
+    if value is not None:
+        search_body["query"]["bool"]["must"].append({
+            "range": {f"label_counts.{query}": {operator: value}}
+        })
+
     try:
         response = es.search(index=index_name, body=search_body)
         hits = response['hits']['hits']
         results = []
-
-        # Add image path to each result
         for hit in hits:
-            frame_id = hit['_source'].get('frame_id', {})
-            video_id = hit['_source'].get('video_id', {})
-            video_folder = hit['_source'].get('video_folder', {})
-            image_path = construct_image_path(file_list, hits, frame_id, video_id, video_folder)
-            hit['_source']['image_path'] = image_path
-            label_counts = hit['_source'].get('label_counts', {})
-            labels = hit['_source'].get('labels', [])
-            results.append(frame_id)
-            results.append(video_id)
-            results.append(video_folder)
-            results.append(labels)
-            results.append(label_counts)
-            results.append(image_path)
+            image_info = {
+                'frame_id': hit['_source'].get('frame_id', ''),
+                'video_id': hit['_source'].get('video_id', ''),
+                'video_folder': hit['_source'].get('video_folder', '')
+            }
+            hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
+            results.append(hit['_source'])
         return results
-    except Exception as e:
-        print(f"Error searching Elasticsearch: {str(e)}")
-        return []
-
-def search_object_in_backup(query: str, backup_data: List[Dict], top: int, operator: str, value: int) -> List[Dict]:
-    results = []
-    file_list = load_file_list(FILE_LIST)
-    
-    for entry in backup_data:
-        if query.lower() in [name.lower() for name in entry['labels']]:
-            count_value = entry['label_counts'].get(query, 0)
-            
-            if operator == 'lt' and count_value < value:
-                results.append(entry)
-            elif operator == 'lte' and count_value <= value:
-                results.append(entry)
-            elif operator == 'gt' and count_value > value:
-                results.append(entry)
-            elif operator == 'gte' and count_value >= value:
-                results.append(entry)
-            elif operator == 'eq' and count_value == value:
-                results.append(entry)
-
-            frame_id = entry.get('frame_id', {})
-            video_id = entry.get('video_id', {})
-            video_folder = entry.get('video_folder', {})
-            image_path = construct_image_path(file_list, entry, frame_id, video_id, video_folder)
-            entry['image_path'] = image_path
-            results.append(entry)
-        
-        if len(results) >= top:
-            break
-
-    return results
-
-def search_object(es: Elasticsearch, index_name: str, query: str, operator: str, value: int) -> List[Dict]:
-    top = 200
-    es_results = search_object_from_elasticsearch(es, index_name, query, top, operator, value)
-    if es_results:
-        print("Results found in Elasticsearch")
-        return es_results
-    else:
-        print("Error: Cannot connect to Elastic search server")
-        backup_data = load_backup_data(OBJECT_BACKUP_FILE_PATH)
-        backup_results = search_object_in_backup(query, backup_data, top, operator, value)
-        return backup_results
+    except (exceptions.ConnectionError, exceptions.TransportError) as e:
+        print(f"Elasticsearch connection error: {e}")
+        backup_data = load_json_file(OBJECT_BACKUP_FILE_PATH)
+        return search_in_backup(query, backup_data, threshold=50)
