@@ -147,7 +147,7 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
         
         if video_file_id:
             # Construct the video path from video_id
-            video_path = f"{base_video_url}{video_file_id}/view"
+            video_path = f"{base_video_url}{video_file_id}/preview"
             result['video_path'] = video_path
         else:
             print(f"Video ID not found for video: {video_id}")

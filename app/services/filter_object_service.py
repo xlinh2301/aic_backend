@@ -52,7 +52,7 @@ def construct_paths(file_list: Dict[str, str], file_video_list: Dict[str, str], 
         if file_id:
             result['image_path'] = f"{base_image_url}{file_id}"
         if video_file_id:
-            result['video_path'] = f"{base_video_url}{video_file_id}/view"
+            result['video_path'] = f"{base_video_url}{video_file_id}/preview"
         if fps is not None:
             result['fps'] = fps
 
