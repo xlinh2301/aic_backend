@@ -8,7 +8,9 @@ import cv2
 import faiss
 from googletrans import Translator
 from langdetect import detect
+import requests
 from PIL import Image
+from io import BytesIO
 from pydantic import BaseModel
 from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST
 
@@ -17,6 +19,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 translator = Translator()
+index_load = faiss.read_index(INDEX_FILE_PATH)
+
 
 class SearchResult(BaseModel):
     frame_id: int
@@ -43,11 +47,29 @@ def detect_language(query: str) -> Optional[str]:
         return None
 
 def process_image(image_path: str) -> torch.Tensor:
-    """Tải và tiền xử lý hình ảnh cho mô hình CLIP"""
-    image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
+    """Tải và tiền xử lý hình ảnh cho mô hình CLIP, hỗ trợ URL"""
+    
+    if image_path.startswith("http"):
+        # Nếu image_path là URL của Google Drive, chuyển đổi nó thành URL tải về trực tiếp
+        if "drive.google.com" in image_path:
+            file_id = image_path.split("id=")[-1]
+            image_path = f"https://drive.google.com/uc?export=download&id={file_id}"
+            print(f"Download URL: {image_path}")
+        # Tải ảnh về từ URL
+        response = requests.get(image_path)
+        if response.status_code != 200:
+            raise ValueError(f"Unable to download image from {image_path}")
+        image = Image.open(BytesIO(response.content))
+    else:
+        # Nếu image_path là đường dẫn file local
+        image = Image.open(image_path)
+
+    # Tiền xử lý ảnh cho CLIP
+    image = preprocess(image).unsqueeze(0).to(device)
     return image
 
-def search_text(text_query: str, index, top_k: int = 5) -> List[int]:
+
+def search_text(text_query: str, top_k: int = 300) -> List[int]:
     """Tìm kiếm văn bản, dịch nếu cần thiết và thực hiện tìm kiếm"""
     lang = detect_language(text_query)
 
@@ -62,18 +84,18 @@ def search_text(text_query: str, index, top_k: int = 5) -> List[int]:
     with torch.no_grad():
         text_features = model.encode_text(text)
     text_features = text_features.cpu().numpy().astype('float32').flatten()
-    distances, indices = index.search(np.expand_dims(text_features, axis=0), top_k)
+    distances, indices = index_load.search(np.expand_dims(text_features, axis=0), top_k)
     # print(f"Search distances (text): {distances}")
     # print(f"Search indices (text): {indices}")
     return indices[0]
 
-def search_image(image_path: str, index, top_k: int = 5) -> List[int]:
+def search_image(image_path: str, top_k: int = 300) -> List[int]:
     """Tìm kiếm bằng hình ảnh"""
     image = process_image(image_path)
     with torch.no_grad():
         image_features = model.encode_image(image)
     image_features = image_features.cpu().numpy().astype('float32').flatten()
-    distances, indices = index.search(np.expand_dims(image_features, axis=0), top_k)
+    distances, indices = index_load.search(np.expand_dims(image_features, axis=0), top_k)
     return indices[0]
 
 def load_file_list(file_list_path: str) -> Dict[str, str]:
@@ -167,7 +189,6 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
 def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Tìm kiếm trong FAISS dựa trên văn bản hoặc hình ảnh và trả về kết quả dưới dạng danh sách từ điển"""
     # Tải chỉ mục FAISS và bản đồ ID
-    index_load = faiss.read_index(INDEX_FILE_PATH)
     
     # Đọc bản đồ ID từ tệp
     try:
@@ -188,10 +209,10 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
 
     if query:
         # Tìm kiếm theo văn bản
-        result_indices = search_text(query, index_load, 200)
+        result_indices = search_text(query, 300)
     elif image_path:
         # Tìm kiếm theo hình ảnh
-        result_indices = search_image(image_path, index_load, 200)
+        result_indices = search_image(image_path, 300)
     else:
         raise ValueError("Either query or image_path must be provided.")
 

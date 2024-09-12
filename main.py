@@ -12,7 +12,7 @@ from pydrive.auth import GoogleAuth, RefreshError
 from pydrive.drive import GoogleDrive
 from oauth2client.client import HttpAccessTokenRefreshError
 import os
-
+import numpy as np 
 app = FastAPI()
 
 if not os.path.exists(CLIENT_SECRETS):
@@ -173,3 +173,33 @@ def combine_results(results: Dict[str, list]) -> Dict[str, list]:
         "image": results["image"]
     }
     return combined
+
+
+@app.post("/app/search-image-similar")
+async def search_image_similar(image_path: str):
+    """
+    Tìm kiếm hình ảnh tương tự sử dụng CLIP và FAISS.
+
+    Parameters:
+    - image_path: Đường dẫn của hình ảnh cần truy vấn.
+
+    Returns:
+    - Danh sách kết quả hình ảnh tương tự.
+    """
+    try:
+        print(f"Searching similar images for: {image_path}")
+        
+        # Tìm kiếm hình ảnh tương tự bằng CLIP qua FAISS
+        similar_images = search_faiss(None,image_path)
+        
+        # Chuyển đổi kết quả (nếu là mảng NumPy) thành danh sách Python
+        similar_images = similar_images.tolist() if isinstance(similar_images, np.ndarray) else similar_images
+        
+        # Kiểm tra nếu không tìm thấy hình ảnh tương tự
+        if not similar_images:
+            raise HTTPException(status_code=404, detail="No similar images found.")
+        
+        return {"similar_images": similar_images}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
