@@ -66,7 +66,7 @@ async def search_all(
     publish_day: Optional[int] = None,
     publish_month: Optional[int] = None,
     publish_year: Optional[int] = None,
-    object_as_filter: Optional[bool] = True  # Thêm cờ để quyết định cách sử dụng object search
+    object_as_filter: Optional[bool] = False  # Thêm cờ để quyết định cách sử dụng object search
 ):
     """
     Endpoint to perform combined search from multiple sources: CLIP, OCR, Object, ASR, and Image.
@@ -115,9 +115,9 @@ async def search_all(
         if object_as_filter:
             print("Vô đây")
             if "object" in queries and queries["object"] and results["clip"]:
+                print("Vô đây nè")
                 combined_results = search_filter_object(es, "object_detection", queries["object"], operator, value, results["clip"])
             else:
-                results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
                 combined_results = combine_results(results)
         else:
             if "object" in queries and queries["object"]:

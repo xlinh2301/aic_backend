@@ -120,7 +120,7 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
     :return: Một dictionary chứa đường dẫn ảnh và video.
     """
     base_image_url = "https://drive.google.com/thumbnail?export=view&sz=w160-h160&id="
-    base_video_url = "https://drive.google.com/file/d/"  # Base URL for video
+    base_video_url = "https://drive.google.com/uc?export=download&id="
     
     # Extract information from image_info
     frame_id = image_info.get('frame_id')
@@ -147,7 +147,7 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
         
         if video_file_id:
             # Construct the video path from video_id
-            video_path = f"{base_video_url}{video_file_id}/preview"
+            video_path = f"{base_video_url}{video_file_id}"
             result['video_path'] = video_path
         else:
             print(f"Video ID not found for video: {video_id}")
