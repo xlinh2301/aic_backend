@@ -82,6 +82,10 @@ async def search_all(
     Returns:
     - Combined search results from various sources.
     """
+    print(f"Queries: {queries}")
+    print(f"Operator: {operator}")
+    print(f"Value: {value}")
+
     results = {
         "clip": [],
         "ocr": [],
@@ -104,9 +108,9 @@ async def search_all(
         if "image_url" in queries and queries["image_url"]:
             results["image"] = search_image(queries["image_url"])
 
-        # Ensure operator and value are defined
-        operator = queries.get("operator")
-        value = queries.get("value")
+        # # Ensure operator and value are defined
+        # operator = queries.get("operator")
+        # value = queries.get("value")
 
         # Ensure results["clip"] is initialized
         results["clip"] = results.get("clip", [])
@@ -115,13 +119,13 @@ async def search_all(
         if object_as_filter:
             print("Vô đây")
             if "object" in queries and queries["object"] and results["clip"]:
-                print("Vô đây nè")
+                print("operator: ", operator)
+                print("value: ", value)
                 combined_results = search_filter_object(es, "object_detection", queries["object"], operator, value, results["clip"])
             else:
                 combined_results = combine_results(results)
         else:
             if "object" in queries and queries["object"]:
-                print("Vô đây nè")
                 results["object"] = search_object(es, "object_detection", queries["object"], operator, value)
             combined_results = combine_results(results)
 

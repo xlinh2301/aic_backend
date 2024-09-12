@@ -83,20 +83,29 @@ def search_filter_object_from_elasticsearch(
         "query": {
             "bool": {
                 "must": [
-                    {"match": {"labels.keyword": query}},  # Tìm các đối tượng liên quan tới query
-                    {"terms": {"frame_id": frame_ids}},   # Chỉ tìm trong frame_id được trả về từ CLIP
-                    {"terms": {"video_id": video_ids}}     # Chỉ tìm trong video_id được trả về từ CLIP
+                    {"term": {"labels.keyword": query}},  # Tìm các đối tượng liên quan tới query
+                    {"terms": {"frame_id.keyword": frame_ids}},   # Chỉ tìm trong frame_id được trả về từ CLIP
+                    {"terms": {"video_id.keyword": video_ids}}    # Chỉ tìm trong video_id được trả về từ CLIP
                 ]
             }
         },
         "size": top  # Số lượng kết quả tối đa
     }
 
-
-    # Add the range query only if the value is not None
-    if value is not None:
+    # Define range operators mapping
+    range_operators = {
+        "gt": "gt",
+        "lt": "lt",
+        "gte": "gte",
+        "lte": "lte",
+        "eq": "eq"
+    }
+    
+    # Add the range query only if the value is not None and operator is valid
+    if value is not None and operator in range_operators:
+        op = range_operators[operator]
         search_body["query"]["bool"]["must"].append({
-            "range": {f"label_counts.{query}": {operator: value}}
+            "range": {f"label_counts.{query}": {op: value}}
         })
 
     try:
