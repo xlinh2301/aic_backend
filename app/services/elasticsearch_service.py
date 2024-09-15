@@ -66,7 +66,8 @@ def search_from_elasticsearch(es: Elasticsearch, index_name: str, query: str, fi
             "match": {
                 field: query
             }
-        }
+        },
+        "size": 300
     }
     try:
         response = es.search(index=index_name, body=search_query)
