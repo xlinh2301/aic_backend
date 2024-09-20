@@ -9,6 +9,6 @@ OBJECT_BACKUP_FILE_PATH = os.path.join('app', 'data', 'object_backup_merge.json'
 CLIENT_SECRETS = os.path.join('app', 'data', 'client_secrets.json')
 META_DATA = os.path.join('app', 'data', 'metadata')
 CREDENTIALS_PATH = os.path.join('app', 'data', 'credentials.json')
-FILE_LIST = os.path.join('app', 'data', 'file_list.json')
+FILE_LIST = os.path.join('app', 'data', 'file_image_list.json')
 FILE_VIDEO_LIST = os.path.join('app', 'data', 'file_video_list.json')
 FILE_FPS_LIST = os.path.join('app', 'data', 'file_fps_list.json')

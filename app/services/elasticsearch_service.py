@@ -100,13 +100,17 @@ def search_ocr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
     es_results = search_from_elasticsearch(es, index_name, query, 'text')
     if es_results:
         for hit in es_results:
+            video_name = hit['_source'].get('video_name', '')
+            video_folder = f"Videos_{video_name.split('_')[0]}"
             image_info = {
                 'frame_id': hit['_source'].get('frame', ''),
-                'video_id': hit['_source'].get('video_name', ''),
-                'video_folder': f"Videos_{hit['_source'].get('video_name', '').split('_')[0]}"
+                'video_id': video_name,
+                'video_folder': video_folder
             }
             hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
+            hit['_source']['video_folder'] = video_folder  # Thêm trường video_folder vào kết quả
         return es_results
+
 
     backup_data = load_json_file(OCR_BACKUP_FILE_PATH)
     return search_in_backup(query, backup_data)
