@@ -209,10 +209,10 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
 
     if query:
         # Tìm kiếm theo văn bản
-        result_indices = search_text(query, 300)
+        result_indices = search_text(query, 1000)
     elif image_path:
         # Tìm kiếm theo hình ảnh
-        result_indices = search_image(image_path, 300)
+        result_indices = search_image(image_path, 1000)
     else:
         raise ValueError("Either query or image_path must be provided.")
 
