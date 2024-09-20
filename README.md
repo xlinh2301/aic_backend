@@ -27,7 +27,7 @@ git clone https://github.com/xlinh2301/aic_backend.git
 cd aic_backend
 ```
 ### 2. Download data and move in app/data
-link: https://drive.google.com/file/d/1UGNPIu9exiDfMTZldHgcQds0Em8T9Fy1/view?usp=drive_link
+link: https://drive.google.com/file/d/1w93p6atlR8W9sMYoeXYnuBKiEYIRmlYy/view?usp=drive_link
 
 ### 3. Setup with Conda Environment
 Create a Conda environment with the required dependencies:
