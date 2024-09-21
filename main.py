@@ -95,6 +95,7 @@ async def search_all(
     }
 
     try:
+        print("Vô đây")
         # Perform searches in respective services
         if "clip" in queries and queries["clip"]:
             results["clip"] = search_faiss(queries["clip"])

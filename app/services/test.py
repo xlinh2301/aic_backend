@@ -14,9 +14,9 @@ gauth.LocalWebserverAuth()  # Cho phép xác thực qua trình duyệt web
 # Tạo đối tượng GoogleDrive
 drive = GoogleDrive(gauth)
 
-def get_image_ids(drive, folder_id):
-    """Lấy ID và tên của các ảnh (JPEG, PNG) trong thư mục và các thư mục con"""
-    image_info_list = []
+def get_video_ids(drive, folder_id):
+    """Lấy ID và tên của các video (MP4) trong thư mục và các thư mục con có tên chứa từ 'video'"""
+    video_info_list = []
     folders = [folder_id]
     
     while folders:
@@ -38,17 +38,18 @@ def get_image_ids(drive, folder_id):
                 mime_type = file['mimeType']
                 
                 if mime_type == 'application/vnd.google-apps.folder':
-                    # Nếu là thư mục, thêm vào danh sách để xử lý tiếp
-                    folders.append(file_id)
-                    print(f"Thêm thư mục con: {file_title}, ID: {file_id}")
-                elif mime_type in ['image/jpeg', 'image/png', 'image/jpg']:
-                    # Chỉ thêm các ảnh có định dạng JPEG hoặc PNG
-                    image_info = {
+                    # Nếu là thư mục và tên chứa từ 'video', thêm vào danh sách để xử lý tiếp
+                    if 'video' in file_title.lower():
+                        folders.append(file_id)
+                        print(f"Thêm thư mục con: {file_title}, ID: {file_id}")
+                elif mime_type == 'video/mp4':
+                    # Chỉ thêm các video có định dạng MP4
+                    video_info = {
                         'id': file_id,
                         'title': file_title
                     }
-                    image_info_list.append(image_info)
-                    print(f"Thêm ảnh: {file_title}, ID: {file_id}")
+                    video_info_list.append(video_info)
+                    print(f"Thêm video: {file_title}, ID: {file_id}")
                 else:
                     print(f"Bỏ qua tệp: {file_title} (mimeType: {mime_type})")
             
@@ -57,15 +58,15 @@ def get_image_ids(drive, folder_id):
             if not page_token:
                 break
     
-    return image_info_list
+    return video_info_list
 
-# Thay thế `folder_id` bằng ID của thư mục chứa các tệp ảnh của bạn
+# Thay thế `folder_id` bằng ID của thư mục chứa các tệp video của bạn
 folder_id = '1pi5sKtD_PTEijpyUD49oX_NGrB5cc59u'  # ID thư mục gốc
-image_info_list = get_image_ids(drive, folder_id)
+video_info_list = get_video_ids(drive, folder_id)
 
-# Lưu thông tin ảnh vào file JSON mới
-output_file_path = 'E:\\AIC\\aic_backend\\app\\file_image_list.json'
+# Lưu thông tin video vào file JSON mới
+output_file_path = 'E:\\AIC\\aic_backend\\app\\file_video_list.json'
 with open(output_file_path, 'w') as f:
-    json.dump(image_info_list, f, indent=4)
+    json.dump(video_info_list, f, indent=4)
 
 print(f"File JSON mới đã được lưu tại {output_file_path}")

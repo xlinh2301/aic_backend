@@ -189,7 +189,7 @@ def construct_image_path_and_video_path(file_list: Dict[str, str], file_video_li
 def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Tìm kiếm trong FAISS dựa trên văn bản hoặc hình ảnh và trả về kết quả dưới dạng danh sách từ điển"""
     # Tải chỉ mục FAISS và bản đồ ID
-    
+    print("Loading FAISS index and ID map...")
     # Đọc bản đồ ID từ tệp
     try:
         with open(ID_MAP_FILE_PATH, 'r') as f:
@@ -206,13 +206,13 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
     file_list = load_file_list(FILE_LIST) 
     file_video_list = load_file_list(FILE_VIDEO_LIST)    
     file_fps_list = load_fps_list(FILE_FPS_LIST)
-
+    print("OK")
     if query:
         # Tìm kiếm theo văn bản
-        result_indices = search_text(query, 1000)
+        result_indices = search_text(query, 10000)
     elif image_path:
         # Tìm kiếm theo hình ảnh
-        result_indices = search_image(image_path, 1000)
+        result_indices = search_image(image_path, 10000)
     else:
         raise ValueError("Either query or image_path must be provided.")
 
@@ -220,6 +220,7 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
     results = []
     for idx in result_indices:
         image_info = id_map_load.get(str(idx), None)
+        print("OK")
         if image_info:
             # Sử dụng hàm construct_image_path_and_video_path để tạo đường dẫn hình ảnh
             paths = construct_image_path_and_video_path(file_list, file_video_list, file_fps_list, image_info)
@@ -227,17 +228,23 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
             video_path = paths.get('video_path')
             fps = paths.get('fps')
             
-            if img_path and video_path:                
+            # if img_path and video_path:
+            if img_path:
                 # Thêm thông tin hình ảnh, video, và FPS vào kết quả
                 results.append({
                     'frame_id': image_info['frame_id'],
-                    'video_id': image_info['video_id'],
+                    'video_id': image_info['video_id'], 
                     'video_folder': image_info['video_folder'],
                     'image_path': img_path,
                     'video_path': video_path,
                     'fps': fps  # Thêm FPS vào kết quả
                 })
             else:
-                print(f"Failed to construct image path for index {idx}")
+                if not img_path:
+                    print(f"Failed to construct image path for index { idx }: Image path not found")
+                if not video_path:
+                    print(f"Failed to construct video path for index {idx}: Video path not found")
+        else:
+            print(f"Video ID not found for index {idx}")
 
-    return results
+    return results   
