@@ -37,7 +37,7 @@ conda create --name video_search_backend python
 conda activate video_search_backend
 ```
 
-## Install Dependencies
+#### Install Dependencies
 Remove faiss-cpu if you want to use faiss-gpu:
 ```bash
 conda remove faiss-cpu
