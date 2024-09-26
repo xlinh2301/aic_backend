@@ -14,13 +14,26 @@ from io import BytesIO
 from pydantic import BaseModel
 from app.config import INDEX_FILE_PATH, ID_MAP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST
 
+# Kiểm tra xem PyTorch có nhận diện được GPU không
+print("CUDA is available:", torch.cuda.is_available())
+
+# In ra tên GPU nếu có
+if torch.cuda.is_available():
+    print("GPU Name:", torch.cuda.get_device_name(0))
+
 # Cấu hình môi trường và tải mô hình CLIP
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using device: {device}")
+
 model, preprocess = clip.load("ViT-B/32", device=device)
 translator = Translator()
 index_load = faiss.read_index(INDEX_FILE_PATH)
 
+# Nếu GPU có sẵn, chuyển FAISS index sang GPU
+if torch.cuda.is_available():
+    res = faiss.StandardGpuResources()  # Tạo tài nguyên GPU
+    index_load = faiss.index_cpu_to_gpu(res, 0, index_load)  # Chuyển index sang GPU
 
 class SearchResult(BaseModel):
     frame_id: int
@@ -208,10 +221,10 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
     file_fps_list = load_fps_list(FILE_FPS_LIST)
     if query:
         # Tìm kiếm theo văn bản
-        result_indices = search_text(query, 1000)
+        result_indices = search_text(query, 500)
     elif image_path:
         # Tìm kiếm theo hình ảnh
-        result_indices = search_image(image_path, 1000)
+        result_indices = search_image(image_path, 500)
     else:
         raise ValueError("Either query or image_path must be provided.")
 
@@ -222,7 +235,7 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
         if image_info:
             # Sử dụng hàm construct_image_path_and_video_path để tạo đường dẫn hình ảnh
             paths = construct_image_path_and_video_path(file_list, file_video_list, file_fps_list, image_info)
-            # img_path = paths.get('image_path')
+            img_path = paths.get('image_path')
             # video_path = paths.get('video_path')
             fps = paths.get('fps')
             
@@ -247,7 +260,7 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
                     'frame_id': image_info['frame_id'],
                     'video_id': image_info['video_id'], 
                     'video_folder': image_info['video_folder'],
-                    # 'image_path': img_path,
+                    'image_path': img_path,
                     # 'video_path': video_path,
                     'fps': fps  # Thêm FPS vào kết quả
                 })
