@@ -1,4 +1,4 @@
-# Backend API
+![image](https://github.com/user-attachments/assets/00d7e26c-b541-44e3-8b8f-eb5de804b401)# Backend API
 
 ## Overview
 
@@ -39,6 +39,7 @@ conda activate video_search_backend
 
 Install Dependencies
 ```bash
+conda install -c conda-forge -c nvidia faiss-gpu
 pip install -r requirements.txt
 ```
 
