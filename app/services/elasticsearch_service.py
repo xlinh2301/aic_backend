@@ -117,8 +117,21 @@ def search_ocr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
 
 def search_asr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
     """Tìm kiếm ASR trong Elasticsearch hoặc trong backup nếu không có kết quả từ Elasticsearch."""
+    file_list = load_file_dict(FILE_LIST)
+    file_video_list = load_file_dict(FILE_VIDEO_LIST)
+    file_fps_list = {item['title']: item['fps'] for item in load_json_file(FILE_FPS_LIST)}
+
     es_results = search_from_elasticsearch(es, index_name, query, 'text')
     if es_results:
+        for hit in es_results:
+            video_name = hit['_source'].get('video_id', '')
+            video_folder = hit['_source'].get('video_folder', '')
+            image_info = {
+                'frame_id': hit['_source'].get('start_frame', ''),
+                'video_id': video_name,
+                'video_folder': video_folder
+            }
+            hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
         return es_results
 
     backup_data = load_json_file(ASR_BACKUP_FILE_PATH)

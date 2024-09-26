@@ -18,33 +18,33 @@ app = FastAPI()
 if not os.path.exists(CLIENT_SECRETS):
     raise FileNotFoundError(f"Client secrets file not found at {CLIENT_SECRETS}")
 
-# Cấu hình PyDrive và xác thực
-gauth = GoogleAuth()
-gauth.LoadClientConfigFile(CLIENT_SECRETS)
+# # Cấu hình PyDrive và xác thực
+# gauth = GoogleAuth()
+# gauth.LoadClientConfigFile(CLIENT_SECRETS)
 
-# Kiểm tra xem tệp credentials.json có tồn tại không
-if os.path.exists(CREDENTIALS_PATH):
-    gauth.LoadCredentialsFile(CREDENTIALS_PATH)
-    if gauth.credentials is None or gauth.access_token_expired:
-        try:
-            # Nếu token hết hạn, làm mới token
-            gauth.Refresh()
-        except (RefreshError, HttpAccessTokenRefreshError):
-            # Nếu không thể làm mới token, thực hiện xác thực qua trình duyệt web
-            gauth.LocalWebserverAuth()
-            # Lưu token vào tệp credentials.json
-            gauth.SaveCredentialsFile(CREDENTIALS_PATH)
-    else:
-        # Nếu token hợp lệ, sử dụng token hiện tại
-        gauth.Authorize()
-else:
-    # Nếu không có tệp credentials.json, thực hiện xác thực qua trình duyệt web
-    gauth.LocalWebserverAuth()
-    # Lưu token vào tệp credentials.json
-    gauth.SaveCredentialsFile(CREDENTIALS_PATH)
+# # Kiểm tra xem tệp credentials.json có tồn tại không
+# if os.path.exists(CREDENTIALS_PATH):
+#     gauth.LoadCredentialsFile(CREDENTIALS_PATH)
+#     if gauth.credentials is None or gauth.access_token_expired:
+#         try:
+#             # Nếu token hết hạn, làm mới token
+#             gauth.Refresh()
+#         except (RefreshError, HttpAccessTokenRefreshError):
+#             # Nếu không thể làm mới token, thực hiện xác thực qua trình duyệt web
+#             gauth.LocalWebserverAuth()
+#             # Lưu token vào tệp credentials.json
+#             gauth.SaveCredentialsFile(CREDENTIALS_PATH)
+#     else:
+#         # Nếu token hợp lệ, sử dụng token hiện tại
+#         gauth.Authorize()
+# else:
+#     # Nếu không có tệp credentials.json, thực hiện xác thực qua trình duyệt web
+#     gauth.LocalWebserverAuth()
+#     # Lưu token vào tệp credentials.json
+#     gauth.SaveCredentialsFile(CREDENTIALS_PATH)
 
-# Tạo đối tượng GoogleDrive
-drive = GoogleDrive(gauth)
+# # Tạo đối tượng GoogleDrive
+# drive = GoogleDrive(gauth)
 
 # CORS configuration
 app.add_middleware(
@@ -104,7 +104,7 @@ async def search_all(
             results["ocr"] = search_ocr(es, "ocr", queries["ocr"])
 
         if "asr" in queries and queries["asr"]:
-            results["asr"] = search_asr(es, "asr_test", queries["asr"])
+            results["asr"] = search_asr(es, "asr", queries["asr"])
 
         if "image_url" in queries and queries["image_url"]:
             results["image"] = search_image(queries["image_url"])
