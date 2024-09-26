@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/00d7e26c-b541-44e3-8b8f-eb5de804b401)# Backend API
+# Backend API
 
 ## Overview
 
