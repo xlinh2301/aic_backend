@@ -39,6 +39,7 @@ conda activate video_search_backend
 
 Install Dependencies
 ```bash
+conda remove faiss-cpu (recommend)
 conda install -c conda-forge -c nvidia faiss-gpu
 pip install -r requirements.txt
 ```
