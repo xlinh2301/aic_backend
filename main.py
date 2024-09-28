@@ -120,6 +120,7 @@ async def search_all(
         if object_as_filter:
             print("Vô đây")
             if "object" in queries and queries["object"] and results["clip"]:
+                print("Results clip: ", results["clip"])
                 print("operator: ", operator)
                 print("value: ", value)
                 combined_results = search_filter_object(es, "object_detection", queries["object"], operator, value, results["clip"])
