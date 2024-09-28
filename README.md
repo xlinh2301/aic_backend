@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/00d7e26c-b541-44e3-8b8f-eb5de804b401)# Backend API
+# Backend API
 
 ## Overview
 
@@ -37,7 +37,12 @@ conda create --name video_search_backend python
 conda activate video_search_backend
 ```
 
-Install Dependencies
+#### Install Dependencies
+Remove faiss-cpu if you want to use faiss-gpu:
+```bash
+conda remove faiss-cpu
+```
+Then
 ```bash
 conda install -c conda-forge -c nvidia faiss-gpu
 pip install -r requirements.txt
