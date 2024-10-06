@@ -221,10 +221,10 @@ def search_faiss(query: Optional[str] = None, image_path: Optional[str] = None) 
     file_fps_list = load_fps_list(FILE_FPS_LIST)
     if query:
         # Tìm kiếm theo văn bản
-        result_indices = search_text(query, 500)
+        result_indices = search_text(query, 400)
     elif image_path:
         # Tìm kiếm theo hình ảnh
-        result_indices = search_image(image_path, 500)
+        result_indices = search_image(image_path, 400)
     else:
         raise ValueError("Either query or image_path must be provided.")
 

@@ -3,7 +3,8 @@ from elasticsearch import Elasticsearch, exceptions
 import json
 import os
 from rapidfuzz import fuzz  # type: ignore
-from app.config import ASR_BACKUP_FILE_PATH, OCR_BACKUP_FILE_PATH, OBJECT_BACKUP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST
+from bisect import bisect_right
+from app.config import ASR_BACKUP_FILE_PATH, OCR_BACKUP_FILE_PATH, OBJECT_BACKUP_FILE_PATH, FILE_LIST, FILE_VIDEO_LIST, FILE_FPS_LIST, FILE_NAME_FRAME
 
 def load_json_file(file_path: str) -> List[Dict]:
     """Tải dữ liệu từ tệp JSON và trả về dưới dạng danh sách các dictionary."""
@@ -115,24 +116,74 @@ def search_ocr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
     backup_data = load_json_file(OCR_BACKUP_FILE_PATH)
     return search_in_backup(query, backup_data)
 
+def find_closest_frame(start_frame: int, frames_data: List[Dict], video_folder: str, video_id: str) -> Optional[Dict]:
+    """
+    Tìm frame gần nhất với start_frame từ danh sách frame dữ liệu sử dụng tìm kiếm nhị phân.
+    
+    :param start_frame: Khung thời gian bắt đầu.
+    :param frames_data: Danh sách các frame để tìm kiếm.
+    :param video_folder: Thư mục video.
+    :param video_id: ID video.
+    :return: Frame gần nhất, hoặc None nếu không tìm thấy.
+    """
+    # Lọc danh sách frame cho video_id và video_folder tương ứng
+    filtered_frames = [
+        frame for frame in frames_data
+        if '_'.join(frame.get('video_id').split('_')[:2]) == video_id
+    ]
+    
+    # Nếu không có frame nào khớp
+    if not filtered_frames:
+        return None
+    
+    # Sắp xếp các frame theo frame_id
+    filtered_frames.sort(key=lambda x: int(x.get('frame_id')))
+    
+    # Danh sách các frame_id để dùng cho tìm kiếm nhị phân
+    frame_ids = [int(frame.get('frame_id')) for frame in filtered_frames]
+    
+    # Sử dụng tìm kiếm nhị phân để tìm vị trí đầu tiên có frame_id lớn hơn start_frame
+    pos = bisect_right(frame_ids, start_frame)
+    
+    # Kiểm tra nếu tồn tại frame lớn hơn start_frame
+    if pos < len(frame_ids):  # Frame ngay sau start_frame
+        return filtered_frames[pos]
+    
+    return None
+
+
 def search_asr(es: Elasticsearch, index_name: str, query: str) -> List[Dict]:
     """Tìm kiếm ASR trong Elasticsearch hoặc trong backup nếu không có kết quả từ Elasticsearch."""
     file_list = load_file_dict(FILE_LIST)
     file_video_list = load_file_dict(FILE_VIDEO_LIST)
     file_fps_list = {item['title']: item['fps'] for item in load_json_file(FILE_FPS_LIST)}
-
+    frames_data = load_json_file(FILE_NAME_FRAME)
+    # print("frames_data: ", frames_data)
     es_results = search_from_elasticsearch(es, index_name, query, 'text')
+
+    results = []
+
     if es_results:
         for hit in es_results:
             video_name = hit['_source'].get('video_id', '')
             video_folder = hit['_source'].get('video_folder', '')
-            image_info = {
-                'frame_id': hit['_source'].get('start_frame', ''),
-                'video_id': video_name,
-                'video_folder': video_folder
-            }
-            hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
-        return es_results
+            start_frame = hit['_source'].get('start_frame', '')
+            
+            # Tìm frame gần nhất
+            closest_frame = find_closest_frame(start_frame, frames_data, video_folder, video_name)
+            # print("closest_frame: ",closest_frame)
+            if closest_frame:
+                image_info = {
+                    'start_frame': closest_frame.get('frame_id', ''),
+                    'video_id': video_name,
+                    'video_folder': video_folder,
+                    'end_frame': hit['_source'].get('end_frame', ''),
+                    'fps': hit['_source'].get('fps', ''),
+                    'text': hit['_source'].get('text', '')
+                }
+                # hit['_source'].update(construct_paths(file_list, file_video_list, file_fps_list, image_info))
+                results.append(image_info)
+        return results
 
     backup_data = load_json_file(ASR_BACKUP_FILE_PATH)
     return search_in_backup(query, backup_data, field='text')
