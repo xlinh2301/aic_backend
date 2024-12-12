@@ -15,7 +15,7 @@ This repository contains the backend for a video search system built with FastAP
 
 ## Requirements
 
-- Python 3.12 or higher
+- Python 3.12
 - Conda for environment management
 
 ## Setup
@@ -38,14 +38,9 @@ conda activate video_search_backend
 ```
 
 #### Install Dependencies
-Remove faiss-cpu if you want to use faiss-gpu:
 ```bash
-conda remove faiss-cpu
-```
-Then
-```bash
-conda install -c conda-forge -c nvidia faiss-gpu
 pip install -r requirements.txt
+conda install -c conda-forge -c nvidia faiss-gpu
 ```
 
 ### 4. Setup with Docker (Not recommended)
